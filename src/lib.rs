@@ -6,12 +6,12 @@ extern  crate alloc;
 use alloc::vec::Vec;
 use core::cmp::PartialEq;
 
-/// Taille fixe d'un bloc de données (ex: 64 octets).
+/// Le pont vers notre première primitive cypherpunk
+use panoptic_entropy_harvester::{EntropyHarvester, HardwareClock};
+
 const BLOCK_SIZE: usize = 64;
-/// Nombre de blocs par noeug (bucket) dans l'arbre.
 const BUCKET_SIZE: usize = 4;
 
-/// Un bloc de données, réel ou factice.
 #[derive(Clone)]
 pub struct Block {
     pub id: u64, // id = 0 signifie que c'est un bloc factice (dummy)
@@ -41,19 +41,20 @@ impl Bucket {
     }
 }
 
-/// L'arbre ORAM lui-même.
-pub struct PathOram {
+// L'ORAM fusionne avec l'Extracteur
+pub struct PathOram<C: HardwareClock> {
     pub tree: Vec<Bucket>,
     pub depth: u32,
+    pub harvester: EntropyHarvester<C>,
 }
 
-impl PathOram {
-    /// Initialise un arbre vide d'une profondeur donnée.
-    pub fn new(depth: u32) -> Self {
+impl<C: HardwareClock> PathOram<C> {
+    pub fn new(depth: u32, harvester: EntropyHarvester<C>) -> Self {
         let num_nodes = (1 << (depth + 1)) - 1;
         Self {
             tree: alloc::vec![Bucket::empty(); num_nodes as usize],
             depth,
+            harvester,
         }
     }
 
@@ -62,11 +63,26 @@ impl PathOram {
         (node << 1) + 1 + (direction as usize)
     }
 
-    /// Extrait le chemin complet de la racine jusqu'à une feuille donnée.
-    /// L'attaquant verra cette lecture, mais la feuille ciblée changera à chaque accès.
-    pub fn read_path(&self, leaf: usize) -> Vec<Bucket> {
+    /// Génère une feuille purement aléatoire en distillant le bruit matériel.
+    pub fn random_leaf(&mut self)  -> usize {
+        // La graine de 32 octets forgée par notre fonction SHA-3 locale
+        let seed = self.harvester.forge_seed();
+
+        // On extrait 8 octets pour créer un entier
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&seed[0..8]);
+        let raw_rand = u64::from_le_bytes(buf) as usize;
+
+        // On contraint ce chaos mathématique au nombre de feuilles de l'arbre
+        let num_leaves = 1 << self.depth;
+        raw_rand % num_leaves
+    }
+
+    /// Lecture obfusquée ; le chemin est désormais dicté par l'entropie
+    pub fn read_random_path(&mut self) -> Vec<Bucket> {
+        let leaf = self.random_leaf();
         let mut path = Vec::with_capacity((self.depth + 1) as usize);
-        let mut current_node = 0; // Racine
+        let mut current_node = 0;
 
         path.push(self.tree[current_node].clone());
 

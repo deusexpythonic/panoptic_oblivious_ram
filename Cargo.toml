@@ -8,8 +8,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
-# Aucune dépendance externe requise pour la structure de l'arbre.
-# L'entropie (panoptic_entropy_harvester) sera injectée au niveau supérieur.
+panoptic_entropy_harvester = { path = "../panoptic_entropy_harvester" }
 
 [profile.release]
 opt-level = 3
