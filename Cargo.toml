@@ -1,0 +1,18 @@
+[package]
+name = "panoptic_oblivious_ram"
+version = "1.0.0"
+edition = "2021"
+authors = [ "Architecte <null@panoptic.local>"]
+description = "Masquage des shémas d'accès mémoire. Path ORAM en Rust no_std."
+license = "MIT"
+publish = false
+
+[dependencies]
+# Aucune dépendance externe requise pour la structure de l'arbre.
+# L'entropie (panoptic_entropy_harvester) sera injectée au niveau supérieur.
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
